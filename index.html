@@ -640,9 +640,9 @@ const DEF_EMPRESA = {
   telefone: '(11) 94144-5665', whatsapp: '(11) 97247-1301', email: '', site: '', instagram: '@ln.serralheria', logo: LOGO_ESCURO, logoClaro: LOGO_CLARO,
   validadeDias: 15,
   prazoEntrega: 'Até 20 dias úteis após a aprovação da proposta e a conferência das medidas no local.',
-  pagamento: '50% de entrada na aprovação e 50% na conclusão da instalação. Pix, boleto ou cartão.',
+  pagamento: '50% de entrada na aprovação e 50% na conclusão da instalação. Pix ou cartão.',
   observacoes: 'Medidas sujeitas a conferência técnica no local antes da produção. Ponto de energia 220 V próximo ao motor por conta do cliente, quando houver automação.',
-  apresentacao: 'Agradecemos a oportunidade de apresentar nossa proposta. Há mais de 10 anos, a LN atende residências, comércios e indústrias de Guarulhos e região, com mais de 1.500 clientes e 800 projetos entregues. Somos revendedores autorizados TecnoPortas, com equipe técnica treinada pela fábrica. A seguir estão as portas de enrolar dimensionadas para o seu vão, com componentes, acabamentos e serviços inclusos.',
+  apresentacao: 'Agradecemos a oportunidade de apresentar nossa proposta. Há 5 anos, a LN atende residências, comércios e indústrias de Guarulhos e região, com mais de 1.500 clientes e 800 projetos entregues. Com fabricação própria e equipe técnica especializada, cuidamos de cada projeto da medição à instalação. A seguir estão as portas de enrolar dimensionadas para o seu vão, com componentes, acabamentos e serviços inclusos.',
 };
 
 const DEF_GARANTIA = `A {EMPRESA}, inscrita no CNPJ {CNPJ}, garante os produtos e serviços descritos na proposta nº {PROPOSTA}, fornecidos a {CLIENTE}, contra defeitos de fabricação e de instalação, nas condições a seguir.
@@ -1209,6 +1209,17 @@ document.addEventListener('toggle', e => { const g = e.target.dataset && e.targe
 const prod = id => S.catalogo.find(p => p.id === id);
 const ativos = cat => S.catalogo.filter(p => p.cat === cat && p.ativo !== false);
 
+// atualiza textos padrão antigos em dados já salvos
+function limparTextosAntigos(o) {
+  if (!o) return o;
+  ['pagamento', 'apresentacao', 'obs', 'observacoes'].forEach(k => {
+    if (typeof o[k] !== 'string') return;
+    o[k] = o[k].replace(/Pix, b\w+ ou cartão\./g, 'Pix ou cartão.')
+      .replace(/Há mais de 1\d anos,/g, 'Há 5 anos,')
+      .replace(/ ?Somos revendedores autorizados [^,]+, com equipe técnica treinada pela fábrica\./g, ' Com fabricação própria e equipe técnica especializada, cuidamos de cada projeto da medição à instalação.');
+  });
+  return o;
+}
 async function carregar() {
   await Store.init();
   const [emp, cat, reg, gar, vends, orcs] = await Promise.all([
@@ -1216,6 +1227,7 @@ async function carregar() {
     Store.get('config/garantia'), Store.list('vendedores'), Store.list('orcamentos'),
   ].map(p => p.catch(() => null)));
   if (emp) S.empresa = Object.assign(clone(DEF_EMPRESA), emp);
+  limparTextosAntigos(S.empresa);
   if (cat && Array.isArray(cat.produtos)) S.catalogo = cat.produtos;
   if (reg) S.regras = Object.assign(clone(DEF_REGRAS), reg);
   if (gar && typeof gar.texto === 'string') S.garantia = gar.texto;
@@ -1232,7 +1244,8 @@ async function carregar() {
   }
   const locais = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('lnorc:local-orc/')) locais.push(JSON.parse(localStorage.getItem(k))); } } catch (e) { /* */ }
   S.orcs = [...(orcs || []), ...locais.filter(l => !(orcs || []).some(o => o.id === l.id))].sort((a, b) => (b.atualizado || 0) - (a.atualizado || 0));
-  const rasc = Store.lsGet('rascunho2');
+  S.orcs.forEach(limparTextosAntigos);
+  const rasc = Store.lsGet('rascunho2'); if (rasc) limparTextosAntigos(rasc);
   const ex = S.orcs.find(o => o.id === 'o-exemplo');
   S.q = rasc && rasc.portas ? rasc : ex ? clone(ex) : (S.orcs.length ? novoOrc() : orcExemplo());
 }
@@ -1582,6 +1595,7 @@ function render() {
   ({ orcamento: vOrc, historico: vHist, precos: vPrecos, vendedores: vVend, empresa: vEmpresa, garantia: vGarantia, regras: vRegras })[v](m);
   $('#barraMob').style.display = v === 'orcamento' ? '' : 'none';
   if (v === 'orcamento') atualizarTotais();
+  if (!Store.supa && window.claude) m.insertAdjacentHTML('afterbegin', `<div class="aviso mudou"><span><b>O sistema mudou de endereço.</b> Use agora <a href="https://andrey07pinha-glitch.github.io/orcamento/" target="_blank" rel="noopener">andrey07pinha-glitch.github.io/orcamento</a>, com login por código. Os orçamentos feitos aqui ficam só nesta versão antiga.</span></div>`);
 }
 window.addEventListener('hashchange', async () => {
   $('#modal').classList.remove('on');
@@ -2238,7 +2252,7 @@ function vVend(m) {
         <input type="tel" data-k="tel" value="${esc(v.tel)}" placeholder="WhatsApp" aria-label="WhatsApp">
         <input type="email" data-k="email" value="${esc(v.email)}" placeholder="E-mail" aria-label="E-mail">
       </div>
-      <div class="full campo"><label>Sobre o vendedor (sai na proposta)</label><textarea data-k="bio" rows="5" placeholder="Ex.: Há 8 anos ajudando comércios e indústrias a escolher a porta certa...">${esc(v.bio)}</textarea></div>
+      <div class="full campo"><label>Sobre o vendedor (sai na proposta)</label><textarea data-k="bio" rows="5" placeholder="Ex.: Há 5 anos ajudando comércios e indústrias a escolher a porta certa...">${esc(v.bio)}</textarea></div>
       ${Store.supa ? `<div class="full acesso-linha"><span class="tag ${temAcesso(v.id) ? 'ok' : ''}">${temAcesso(v.id) ? 'Pode entrar no sistema' : 'Ainda sem código de acesso'}</span>
         <span><button class="btn min" data-va="codigo">${temAcesso(v.id) ? 'Trocar código' : 'Definir código de acesso'}</button>${temAcesso(v.id) ? ' <button class="btn txt perigo" data-va="tirar">Tirar acesso</button>' : ''}</span></div>` : ''}
       <div class="full" style="display:flex;justify-content:flex-end"><button class="btn txt perigo" data-va="del">Remover vendedor</button></div>
