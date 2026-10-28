@@ -2555,11 +2555,6 @@ async function montarPDF(q, c) {
   [[E.cnpj && 'CNPJ ' + E.cnpj, E.cidade].filter(Boolean).join('   |   '), [E.site, E.instagram].filter(Boolean).join('   |   ')].filter(Boolean)
     .forEach((t, i) => pdf.text(t, W - M, fy + 6 + i * 4, { align: 'right' }));
 
-  // ---- Ficha técnica (página deitada) quando há porta automática
-  if (typeof FICHA_TECNICA !== 'undefined' && q.portas.some((d, i) => d.acion === 'auto' && c.portas[i] && !c.portas[i].vazio)) {
-    try { const pg = await paginaFicha(E, q); pdf.addPage({ rotate: 90 }); pdf.imageLand(pg, 0, 0, 297, 210); } catch (e) { /* segue sem a ficha */ }
-  }
-
   // ---- Página de detalhes
   nova();
   pdf.font(true, 16).color(C.ink).text('Detalhamento da proposta', M, y + 4);
@@ -2776,6 +2771,11 @@ async function montarPDF(q, c) {
   pdf.line(M, y, M + sw2, y); pdf.line(M + sw2 + 12, y, M + CW, y);
   pdf.font(false, 8).color(C.mut).text(q.cliente.nome || 'Cliente', M, y + 4); pdf.text('Data: ____/____/______', M + sw2 + 12, y + 4);
   y += 8;
+  }
+
+  // ---- Ficha técnica (página deitada) depois da página do valor, quando há porta automática
+  if (typeof FICHA_TECNICA !== 'undefined' && q.portas.some((d, i) => d.acion === 'auto' && c.portas[i] && !c.portas[i].vazio)) {
+    try { const pg = await paginaFicha(E, q); pdf.addPage({ rotate: 90 }); pdf.imageLand(pg, 0, 0, 297, 210); } catch (e) { /* segue sem a ficha */ }
   }
 
   // ---- Termo de garantia
