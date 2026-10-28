@@ -460,6 +460,18 @@ details.opc.tec{margin:0}
 .tag.ok{background:var(--ok-bg);color:var(--ok)}
 @media (max-width:860px){ .quem{display:none} }
 
+/* ===== pedidos do site ===== */
+.leads{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.lead-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.lead-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.lead-h b{display:block;font-size:16px;color:var(--navy)}
+.lead-h span{display:block;font-size:12.5px;color:var(--muted)}
+.lead-h select{width:auto;min-height:34px;padding:4px 30px 4px 9px;font-size:13px}
+.lead-d{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;font-size:13.5px}
+.lead-d small{display:block;font-size:11.5px;color:var(--muted)}
+.lead-a{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width:860px){.leads{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -1088,6 +1100,7 @@ const ICON = {
   copia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>',
   mais: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  lead: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   olho: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
 
@@ -1580,12 +1593,12 @@ async function setFoto(chave, img) {
 
 /* ====== Navegação ====== */
 const VIEWS = [
-  ['orcamento', 'Novo orçamento', 'orc'], ['historico', 'Orçamentos salvos', 'hist'], null,
+  ['orcamento', 'Novo orçamento', 'orc'], ['historico', 'Orçamentos salvos', 'hist'], ['leads', 'Pedidos do site', 'lead'], null,
   ['precos', 'Tabela de preços', 'preco'], ['vendedores', 'Vendedores', 'vend'], ['empresa', 'Empresa', 'emp'],
   ['garantia', 'Termo de garantia', 'gar'], ['regras', 'Regras de cálculo', 'reg'],
 ];
 const VIEWS_VENDEDOR = ['orcamento', 'historico'];
-function viewsVisiveis() { return S.admin ? VIEWS : VIEWS.filter(v => v && VIEWS_VENDEDOR.includes(v[0])); }
+function viewsVisiveis() { const vs = Store.supa ? VIEWS : VIEWS.filter(v => !v || v[0] !== 'leads'); return S.admin ? vs : vs.filter(v => v && VIEWS_VENDEDOR.includes(v[0])); }
 function viewAtual() { const h = location.hash.slice(1); return viewsVisiveis().some(v => v && v[0] === h) ? h : 'orcamento'; }
 function renderRail() {
   const v = viewAtual(), E = S.empresa;
@@ -1602,7 +1615,7 @@ function render() {
   const v = viewAtual();
   const m = $('#main');
   m.oninput = m.onchange = m.onclick = null;
-  ({ orcamento: vOrc, historico: vHist, precos: vPrecos, vendedores: vVend, empresa: vEmpresa, garantia: vGarantia, regras: vRegras })[v](m);
+  ({ orcamento: vOrc, historico: vHist, leads: vLeads, precos: vPrecos, vendedores: vVend, empresa: vEmpresa, garantia: vGarantia, regras: vRegras })[v](m);
   $('#barraMob').style.display = v === 'orcamento' ? '' : 'none';
   if (v === 'orcamento') atualizarTotais();
   if (!Store.supa && window.claude) m.insertAdjacentHTML('afterbegin', `<div class="aviso mudou"><span><b>O sistema mudou de endereço.</b> Use agora <a href="https://andrey07pinha-glitch.github.io/orcamento/" target="_blank" rel="noopener">andrey07pinha-glitch.github.io/orcamento</a>, com login por código. Os orçamentos feitos aqui ficam só nesta versão antiga.</span></div>`);
@@ -2120,6 +2133,62 @@ function copiarResumo() {
   (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
     () => toast('Resumo copiado. É só colar no WhatsApp.'),
     () => avisoModal(`<p>Copie o texto abaixo:</p><textarea style="min-height:220px;margin-bottom:14px" readonly>${esc(txt)}</textarea>`));
+}
+
+/* ====== Tela: pedidos do site ====== */
+const STATUS_LEAD = ['Novo', 'Em contato', 'Orçamento enviado', 'Fechado', 'Perdido'];
+function vLeads(m) {
+  if (!S.leads && !S._leadsCarregando) {
+    S._leadsCarregando = true;
+    Store.list('leads').then(l => { S.leads = l.sort((a, b) => String(b.recebido || '').localeCompare(String(a.recebido || ''))); S._leadsCarregando = false; if (viewAtual() === 'leads') vLeads($('#main')); })
+      .catch(() => { S._leadsCarregando = false; S.leads = S.leads || []; toast('Não foi possível carregar os pedidos do site.'); });
+  }
+  const lista = (S.leads || []).filter(l => !S.filtroLead || l.status === S.filtroLead);
+  const novos = (S.leads || []).filter(l => (l.status || 'Novo') === 'Novo').length;
+  const quando = t => { if (!t) return ''; const d = new Date(t); return isNaN(d) ? t : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+  const wa = l => 'https://wa.me/55' + String(l.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '') + '?text=' + encodeURIComponent(`Olá, ${(l.nome || '').split(' ')[0]}! Aqui é da ${S.empresa.nome}. Recebemos seu pedido de orçamento pelo site.`);
+  m.innerHTML = `
+  <div class="topo"><div><h1>Pedidos do site</h1><p class="sub">${S.leads ? `${S.leads.length} no total${novos ? ` · ${novos} ${novos > 1 ? 'novos' : 'novo'}` : ''}` : 'Carregando…'}</p></div>
+    <div class="acoes"><select id="flead" style="width:auto" aria-label="Filtrar situação"><option value="">Todas as situações</option>${STATUS_LEAD.map(s => `<option ${s === S.filtroLead ? 'selected' : ''}>${s}</option>`).join('')}</select>
+    <button class="btn" data-la="recarregar">Atualizar</button></div></div>
+  ${S.leads && !lista.length ? `<div class="bloco vazio"><p>${S.leads.length ? 'Nenhum pedido com essa situação.' : 'Nenhum pedido ainda. Quando alguém usar o "Monte sua porta" no site, o pedido aparece aqui.'}</p></div>` : ''}
+  <div class="leads">${lista.map(l => `
+    <div class="lead-card" data-lid="${esc(l.id)}">
+      <div class="lead-h"><div><b>${esc(l.nome || 'Sem nome')}</b><span>${esc(quando(l.recebido))}${l.cidade ? ' · ' + esc(l.cidade) : ''}</span></div>
+        <select data-lk="status" aria-label="Situação">${STATUS_LEAD.map(s => `<option ${s === (l.status || 'Novo') ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div class="lead-d">
+        <span><small>Vão</small>${esc(l.largura || '—')} × ${esc(l.altura || '—')} m</span>
+        <span><small>Lâmina</small>${esc(l.lamina || '—')}</span>
+        <span><small>Cor</small>${esc(l.cor || '—')}</span>
+        <span><small>Abertura</small>${esc(l.acionamento || '—')}</span>
+        ${l.extras ? `<span><small>Extras</small>${esc(l.extras)}</span>` : ''}
+        ${l.utm_source || l.utm_campaign || l.gclid || l.fbclid ? `<span><small>Origem</small>${esc([l.utm_source, l.utm_campaign].filter(Boolean).join(' / ') || (l.gclid ? 'Google Ads' : 'Meta Ads'))}</span>` : '<span><small>Origem</small>Direto / orgânico</span>'}
+      </div>
+      <div class="lead-a"><a class="btn pri" href="${wa(l)}" target="_blank" rel="noopener">Chamar ${esc(l.telefone || '')}</a><button class="btn" data-la="orcar">Criar orçamento</button></div>
+    </div>`).join('')}</div>`;
+  $('#flead').onchange = e => { S.filtroLead = e.target.value; vLeads(m); };
+  m.onchange = e => {
+    const card = e.target.closest('[data-lid]'); if (!card || e.target.dataset.lk !== 'status') return;
+    const l = S.leads.find(x => x.id === card.dataset.lid); l.status = e.target.value;
+    Store.set('leads/' + l.id, strip(l)).then(() => toast('Situação salva.')).catch(() => toast('Não foi possível salvar a situação.'));
+  };
+  m.onclick = e => {
+    const b = e.target.closest('[data-la]'); if (!b || viewAtual() !== 'leads') return;
+    if (b.dataset.la === 'recarregar') { S.leads = null; vLeads(m); return; }
+    const card = b.closest('[data-lid]'); const l = card && S.leads.find(x => x.id === card.dataset.lid); if (!l) return;
+    if (b.dataset.la === 'orcar') {
+      const q = novoOrc(); q.cliente.nome = l.nome || ''; q.cliente.tel = l.telefone || ''; q.cliente.endereco = l.cidade || '';
+      const d = q.portas[0]; d.L = l.largura || ''; d.H = l.altura || ''; d.acion = /manual/i.test(l.acionamento || '') ? 'manual' : 'auto';
+      const lam = ativos('lamina').find(p => new RegExp(/transv/i.test(l.lamina) ? 'transv' : /perf/i.test(l.lamina) ? 'perf' : 'lisa|meia', 'i').test(p.nome)); if (lam) d.lamina = lam.id;
+      const cor = CORES.find(c => (l.cor || '').toLowerCase().startsWith(c[0].toLowerCase().slice(0, 5)));
+      if (cor) { d.corHex = cor[1]; d.cor = cor[0]; const pt = ativos('acabamento').filter(p => !p.extra)[0]; d.pintura = pt ? pt.id : ''; }
+      if (/portinhola/i.test(l.extras || '')) d.opc['por-portinhola'] = 1;
+      if (/bandeira/i.test(l.extras || '')) d.opc['cmp-bandeira'] = 1;
+      S.q = q; S.ativa = 0; salvarRascunho(false);
+      if ((l.status || 'Novo') === 'Novo') { l.status = 'Em contato'; Store.set('leads/' + l.id, strip(l)).catch(() => {}); }
+      location.hash = 'orcamento'; toast('Orçamento criado com os dados do pedido.');
+    }
+  };
 }
 
 /* ====== Tela: histórico ====== */
